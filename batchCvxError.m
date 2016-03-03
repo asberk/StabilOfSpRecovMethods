@@ -93,7 +93,7 @@ for ni = 1:nInversions
                 
                 % fast:
                 sigma_empir = norm(A*x_c(:,t) - b(:,ni));
-                tau_empir = norm(x_c, 1);
+                tau_empir = norm(x_c(:,t), 1);
                 qp_objective(t,ni,:) = sigma_empir.^2 + lambda.*tau_empir;
     
                 % slow, more general:

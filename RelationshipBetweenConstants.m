@@ -31,7 +31,7 @@ x0 = RanSpVec(n,k,'StdNormal');
 
 % noise level(s): set to run nIter-many iterations of nIter-many different
 % noise levels
-nIter = 1;
+nIter = 2;
 epsilon = logspace(0, -2, nIter); 
 epsilon = repmat(epsilon, nIter, 1); epsilon = epsilon(:).';
 z = rand(m,nIter^2); % generate nIter-many m-dimensional noise vectors z
@@ -76,6 +76,8 @@ display(sprintf(['\nThe results of the method are stored in\n',...
 invtaustar = 1./lasso_optima(:,1);
 
 plot((invtaustar*tau_vec).', lasso_error);
+xlabel('$\tau/\tau^*$', 'Interpreter', 'latex', 'FontSize', 18);
+ylabel('$\|x_\tau - x_0\|_2$', 'Interpreter', 'latex', 'FontSize', 18);
 
 %% [Unconstrained] LASSO (QP_lambda)
 %
@@ -90,7 +92,7 @@ display(sprintf(['\n[Unconstrained] LASSO (QP_lambda)\n',...
     'and lambda = lambda* / (1-lambda*),\n',...
     'we solve the minimization problem for QP_lambda.\n']))
 % create values for lambda
-lambda = logspace(-3,3, 51);
+lambda = logspace(-3,2.6, 51);
 % use the same vector tau
 % And compute the solutions for the QP minimization problem,
 % where qp_error is the residueal TwoNorm(x_lambda - x0), qp_objective is
@@ -99,9 +101,18 @@ lambda = logspace(-3,3, 51);
 [qp_error, qp_objective, tau_lambda] = batchCvxError(A,b,x0, 'qp', tau_vec, lambda, opts, verbose);
 
 %% Normalized plot of |x_tau - x0|_2 vs. lambda
+
 [qp_optima, idx_qp_optima] = getFirstMin(lambda, qp_error);
 invlamstar = 1./qp_optima(:,1);
-plot((invlamstar*lambda).', qp_error, '.');
+close;
+plot((invlamstar*lambda).', qp_error, '.-');
+xlabel('$\lambda/\lambda^*$', 'Interpreter', 'latex', 'FontSize', 18);
+ylabel('$\|x_{\tau(\lambda)} - x_0\|_2$', 'Interpreter', 'latex', 'FontSize', 18);
+figure;
+plot((lambda).', qp_error, '.-');
+xlabel('$\lambda$', 'Interpreter', 'latex', 'FontSize', 18);
+ylabel('$\|x_{\tau(\lambda)} - x_0\|_2$', 'Interpreter', 'latex', 'FontSize', 18);
+
 
 %% Basis Pursuit De-noise [BPDN] (BP_sigma)
 %
@@ -120,8 +131,15 @@ opts = spgSetParms('verbosity', 0);
 [bpdn_error, tau_approx] = batchCvxError(A,b,x0, 'bpdn', sigma_vec, opts, verbose);
 
 
-%% Plot results
-%
+%% Normalized plot of |x_tau - x0|_2 vs. tau
+[bpdn_optima, idx_bpdn_optima] = getFirstMin(sigma_vec, bpdn_error);
+invsigmastar = 1./bpdn_optima(:,1);
+
+plot((invsigmastar*sigma_vec).', bpdn_error);
+xlabel('$\sigma/\sigma^*$', 'Interpreter', 'latex', 'FontSize', 18);
+ylabel('$\|x_\sigma - x_0\|_2$', 'Interpreter', 'latex', 'FontSize', 18);
+legend(mean(bsxfun(@times, z, epsilon), 1))
+
 %% First plot is for LASSO
 
 figure(1);
