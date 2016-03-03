@@ -45,7 +45,7 @@ display(sprintf(['Create a %d-by-%d matrix A with standard-normal entries,\n',..
     'and a %d-sparse vector x0 with standard-normal entries.\n\n', ...
     'Define vector b0 = A*x0 and create matrix b by adding \n',...
     'epsilon-scaled standard-normal noise matrix epsilon*z.\n',...
-    '\t b0(j) = (A*x0)(j);\n\tb(j,k) = b0(j) + epsilon(k)*z(j,k)\n\n\n'], m,n,k));
+    '\t b0(j) = (A*x0)(j);\n\tb(j,k) = b0(j) + epsilon(k)*z(j,k)\n'], m,n,k));
 
 %% [Constrained] LASSO (LS_tau)
 %
@@ -58,17 +58,50 @@ display(sprintf(['Create a %d-by-%d matrix A with standard-normal entries,\n',..
 nTau = 101; % inverse density of tau grid. 
 tau_vec = linspace(.01, 2*norm(x0), nTau); 
 
-display(sprintf(['Given b(j,k) = (A*x0)(j) + epsilon(k)*z(j,k),\n',...
+display(sprintf(['\n[Constrained] LASSO (LS_tau)\n',...
+    'Given b(j,k) = (A*x0)(j) + epsilon(k)*z(j,k),\n',...
     'and vector tau = (0, ..., 2*TwoNorm(x0)),\nwe solve the minimization problem\n',...
     '\tmin{ TwoNorm(Ax-b) : OneNorm(x) <= tau }\n',...
-    'for %d-many values of tau using batchCvxError \nlasso method'],nTau));
+    'for %d-many values of tau using batchCvxError \nlasso method\n'],nTau));
 
 % define options and run solver
 opts = spgSetParms('verbosity', 0);
-[lasso_error, qp_lambda] = batchCvxError(A,b,x0, 'lasso', tau_vec, opts, verbose);
+[lasso_error, sigma_approx] = batchCvxError(A,b,x0, 'lasso', tau_vec, opts, verbose);
 
-display(sprintf(['The results of the method are stored in\n',...
-    'lasso_error and qp_lambda, respectively'], ));
+display(sprintf(['\nThe results of the method are stored in\n',...
+    'lasso_error and sigma_approx, respectively.\n']));
+
+%% Normalized plot of |x_tau - x0|_2 vs. tau
+[lasso_optima, idx_lasso_optima] = getFirstMin(tau_vec, lasso_error);
+invtaustar = 1./lasso_optima(:,1);
+
+plot((invtaustar*tau_vec).', lasso_error);
+
+%% [Unconstrained] LASSO (QP_lambda)
+%
+% Given b = A*x0 + epsilon*z, we want to recover x0 by solving the
+% minimization problem 
+%
+%      min{ TwoNorm(Ax-b)^2 + lambda*OneNorm(x) }
+
+display(sprintf(['\n[Unconstrained] LASSO (QP_lambda)\n',...
+    'Given b(j,k) = (A*x0)(j) + epsilon(k)*z(j,k),\n',...
+    'and the vectors tau = [0, ..., 2*TwoNorm(x0)],\n',...
+    'and lambda = lambda* / (1-lambda*),\n',...
+    'we solve the minimization problem for QP_lambda.\n']))
+% create values for lambda
+lambda = logspace(-3,3, 51);
+% use the same vector tau
+% And compute the solutions for the QP minimization problem,
+% where qp_error is the residueal TwoNorm(x_lambda - x0), qp_objective is
+% the value of the QP_lambda objective function and tau_lambda(j) is the
+% tau that corresponds to lambda(j). 
+[qp_error, qp_objective, tau_lambda] = batchCvxError(A,b,x0, 'qp', tau_vec, lambda, opts, verbose);
+
+%% Normalized plot of |x_tau - x0|_2 vs. lambda
+[qp_optima, idx_qp_optima] = getFirstMin(lambda, qp_error);
+invlamstar = 1./qp_optima(:,1);
+plot((invlamstar*lambda).', qp_error, '.');
 
 %% Basis Pursuit De-noise [BPDN] (BP_sigma)
 %
@@ -126,27 +159,27 @@ plot(firstMin_BPDN(:,1), firstMin_BPDN(:,2), 'k*');
 hold off;
 
 
-%% Plot qp_lambda
+%% Plot sigma_approx
 lambda_star = linspace(0,1, 25).^(1/4);
 lambda = lambda_star./(1-lambda_star);
 
 for ni = 1:nIter^2
     [X,Y] = meshgrid(lambda, tau_vec);
-    surf(X,Y,reshape(qp_lambda(:, ni, :), size(tau_vec,2), 25));
+    surf(X,Y,reshape(sigma_approx(:, ni, :), size(tau_vec,2), 25));
     title(ni);
     pause;
-    plot(tau_vec, reshape(qp_lambda(:,ni,:), size(tau_vec,2),25));
+    plot(tau_vec, reshape(sigma_approx(:,ni,:), size(tau_vec,2),25));
     title(ni);
     pause;
 end
 
-%% Use qp_lambda to obtain tau-lambda plot
+%% Use sigma_approx to obtain tau-lambda plot
 firstMins = zeros(nIter^2, 25); 
 figure;
 hold on;
 for ni = 1:nIter^2
     for lam = 1:25
-        firstMins(ni, lam) = tau_vec(findFirstMin(qp_lambda(:, ni, lam)));
+        firstMins(ni, lam) = tau_vec(findFirstMin(sigma_approx(:, ni, lam)));
         
     end
     plot(firstMins, lambda);

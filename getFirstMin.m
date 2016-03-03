@@ -1,4 +1,4 @@
-function firstMin = getFirstMin(domain, ran) 
+function [firstMin, idx] = getFirstMin(domain, ran) 
 % domain and range; note that getFirstMin differs from
 % findFirstMin in the same way that Matlab's get methods
 % differ from its find methods. Namely, findFirstMin returns
@@ -28,6 +28,7 @@ function firstMin = getFirstMin(domain, ran)
   %display(domain_val); display(ran_val);
   
   firstMin = [domain_val, ran_val];
+  idx = idx_of_first_min;
   
 end
 

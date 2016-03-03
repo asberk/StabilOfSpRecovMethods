@@ -1,4 +1,4 @@
-function [output, lambda] = QPApprox(A,b,x_c, Nlambda) 
+function [output, lambda] = QPApprox(A,b,x_c, lambda) 
 % QPApprox approximates the quadratic unconstrained LASSO using the solution of the constrained LASSO
 %          In particular, Given the solution x_c = x_tau to 
 %                  min { TwoNorm(A*x-b) : OneNorm(x) ? tau } 
@@ -16,8 +16,8 @@ function [output, lambda] = QPApprox(A,b,x_c, Nlambda)
 %    lambda* : a grid lying in [0,1] that maps to a parameter lambda in [0, infinity] 
 %             by lambda = lambda* / (1 - lambda*)
 
-lambda_star = linspace(0,1, Nlambda).^(1/4);
-lambda = lambda_star./(1-lambda_star);
+% lambda_star = linspace(0,1, Nlambda).^(1/4);
+% lambda = lambda_star./(1-lambda_star);
 sigma_empir = norm(A*x_c - b);
 tau_empir = norm(x_c, 1);
 
