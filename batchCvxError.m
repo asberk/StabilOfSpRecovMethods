@@ -12,13 +12,14 @@ function [residual, primal_min, varargout] = batchCvxError(A,b,x0, program, cons
 %    verbose : no progress output if non-positive; if positive,
 %              outputs according to mod(iterationNumber, verbose) == 0
 
-debug_qp = 1;
+debug_qp = 0;
 
 doQP = 0;
+doQP2 = 0;
 
 switch program
     
-    case {'lasso', 'ls'}
+    case { 'lasso', 'ls' }
         
         spg_program = @spg_lasso;
         
@@ -30,6 +31,11 @@ switch program
 
         spg_program = @spg_lasso;
         doQP = 1;
+        
+    case { 'qp2' }
+        
+        spg_program = @spg_lasso;
+        doQP2 = 1;
 
 end
 
@@ -60,6 +66,10 @@ nInversions = size(b,2); % number of b's for which to look for a solution x
 residual = zeros(nC, nInversions); % rows will be plotted as independent variable; columns stratified as individual lines.
 primal_min = zeros(nC, nInversions);
 
+if doQP2
+    lambda_qp2 = zeros(nC, nInversions); 
+end
+
 if doQP
     qp_objective = zeros(nC, nInversions, nlambda);
     residual_qp = zeros(nlambda, nInversions);
@@ -75,8 +85,17 @@ for ni = 1:nInversions
     
     for t = 1:nC
         
+        % display(constraint(t));
         x_c(:,t) = spg_program(A,b(:,ni),constraint(t),opts);
+%         x_c_test = spgl1(A,b(:,ni), 0, constraint(t), [], opts);
+%         display(nnz(x_c(:,t)));
+%         display(nnz(x_c_test));
+%         
+%         figure(13); plot(abs(x_c(:,t)-x_c_test)); title(num2str(t));
+%         pause;
+        
         residual(t, ni) = norm(x_c(:,t) - x0);
+        
                 
         switch program
         
@@ -98,6 +117,15 @@ for ni = 1:nInversions
     
                 % slow, more general:
                 % qp_objective(t, ni, :) = QPApprox(A,b(:,ni),x_c(:,t), lambda);
+                
+            case { 'qp2' }
+                
+                r_t = A*x_c(:,t) - b(:,ni);
+                sigma_empir = norm(r_t);
+                % need a way to store lambda_t
+                lambda_qp2(t,ni) = norm(A.' * r_t, Inf)/sigma_empir;
+                primal_min(t,ni) = sigma_empir + lambda_qp2(t,ni) * norm(x_c(:,t), 1);
+                
                 
         end
         
@@ -130,8 +158,7 @@ for ni = 1:nInversions
             hold off;
             pause;
         end
-    end
-        
+    end        
         
         
 end
@@ -141,5 +168,10 @@ if doQP
     varargout{1} = tau_qp;
     residual = residual_qp;
 end
+
+if doQP2
+    varargout{1} = lambda_qp2;
+end
+
 
 end
