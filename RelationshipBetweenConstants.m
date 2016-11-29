@@ -47,7 +47,7 @@ b = bsxfun(@plus, b0,bsxfun(@times, epsilon, z));
 meanNoise = mean(bsxfun(@times, z, epsilon), 1);
 legendLabels = cell(size(meanNoise));
 for j = 1:length(meanNoise)
-    legendLabels{j} = num2str(meanNoise(j));
+    legendLabels{j} = sprintf('%.2e', meanNoise(j));
 end
 
 display(sprintf(['Create a %d-by-%d matrix A with standard-normal entries,\n',...

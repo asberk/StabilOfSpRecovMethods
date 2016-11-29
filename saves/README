@@ -1,0 +1,16 @@
+# Description of save files
+
+
+*Note:* this won't be completely up-to-date, since this file was only first
+ created on 28 November 2016. 
+
+## Files outputted from main\_MSEforLassoParameterVariation.m
+
+* ls-bpdn-qp\_error\_28-Nov-2016\_12/02/32.mat
+	* (m, n, k) = (50, 150, 9)
+* ls-bpdn-qp\_error\_28-Nov-2016\_13/57/27.mat
+	* (m, n, k) = (50, 150, 9)
+* ls-bpdn-qp\_error\_28-Nov-2016\_15/06/09.mat
+  * (m, n, k) = (50, 150, 9)
+* ls-bpdn-qp\error\_28-Nov-2016\_22/24
+  * (m, n, k) = (50, 400, 1) 

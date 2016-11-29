@@ -7,15 +7,14 @@ function [residual, primal_min, varargout] = batchCvxError(A,b,x0, program, cons
 %    program : any of 'lasso' or 'ls'; 'basis pursuit' or 'bpdn'; 'unconstrained' or 'qp'
 %    cvec : the constraint vector - i.e., the `tau`, `sigma` or `lambda` corresponding
 %           with ls, bpdn, or qp, respectively
-%    varargin: (program=='qp') ? {lambda, opts, verbose} : {opts, verbose}
+%    varargin: {opts, verbose}
 %    opts : options to be passed to the spg solver
 %    verbose : no progress output if non-positive; if positive,
 %              outputs according to mod(iterationNumber, verbose) == 0
 
 debug_qp = 0;
-
 doQP = 0;
-doQP2 = 0;
+doBPDN=0;
 
 switch program
     
@@ -25,37 +24,27 @@ switch program
         
     case {'basis pursuit', 'bpdn'}
         
-        spg_program = @spg_bpdn;
+        spg_program = @cvx_bpdn;
+        doBPDN = 1;
         
     case {'unconstrained', 'qp'}
 
-        spg_program = @spg_lasso;
+        spg_program = @cvx_ucLasso;
         doQP = 1;
         
-    case { 'qp2' }
-        
-        spg_program = @spg_lasso;
-        doQP2 = 1;
-
-end
-
-if doQP
-    lambda = varargin{1};
-    nlambda = size(lambda,2);
 end
 
 if nargin < 6 % then verbose wasn't included
     verbose = 20;
 else
-    verbose = varargin{2+doQP};
+    verbose = varargin{2};
 end
 
 if nargin < 5 || isempty(varargin{1})
     opts = spgSetParms('verbosity', 0);
 else
-    opts = varargin{1+doQP};
+    opts = varargin{1};
 end
-
 
 % residual = TwoNorm(x_c - x0),
 % where x_c is the solution the minimization problem spg_program
@@ -63,21 +52,16 @@ n = size(x0,1); % dimension of the solution x
 nC = size(constraint, 2); % length of constraint vector tau (or sigma)
 nInversions = size(b,2); % number of b's for which to look for a solution x
 
+if nInversions == 1
+    error('Expected b to be a matrix');
+end
+
 residual = zeros(nC, nInversions); % rows will be plotted as independent variable; columns stratified as individual lines.
 primal_min = zeros(nC, nInversions);
-
-if doQP2
-    lambda_qp2 = zeros(nC, nInversions); 
-end
-
-if doQP
-    qp_objective = zeros(nC, nInversions, nlambda);
-    residual_qp = zeros(nlambda, nInversions);
-    primal_min_qp = zeros(nlambda, nInversions);
-    tau_qp = zeros(nlambda, nInversions);
-end
+x_nnz = zeros(nC, nInversions);
 
 x_c = zeros(n,nC);
+
 
 for ni = 1:nInversions
     
@@ -86,92 +70,20 @@ for ni = 1:nInversions
     for t = 1:nC
         
         % display(constraint(t));
-        x_c(:,t) = spg_program(A,b(:,ni),constraint(t),opts);
-%         x_c_test = spgl1(A,b(:,ni), 0, constraint(t), [], opts);
-%         display(nnz(x_c(:,t)));
-%         display(nnz(x_c_test));
-%         
-%         figure(13); plot(abs(x_c(:,t)-x_c_test)); title(num2str(t));
-%         pause;
+        if doQP || doBPDN
+            [x_c(:,t), primal_min(t,ni)] = spg_program(A, b(:,ni), constraint(t));
+        else % doLS
+            x_c(:,t) = spg_program(A, b(:,ni), constraint(t), opts);
+            primal_min(t,ni) = norm(A*x_c(:,t) - b(:,ni));
+        end
         
+        x_nnz(t,ni) = nnz(x_c(:,t));
         residual(t, ni) = norm(x_c(:,t) - x0);
-        
                 
-        switch program
-        
-            case {'ls', 'lasso'}
-                
-                primal_min(t,ni) = norm(A*x_c(:,t) - b(:,ni));
-                
-            case {'bpdn', 'basis pursuit'}
-                
-                primal_min(t,ni) = norm(x_c(:,t), 1);
-                
-            case {'unconstrained', 'qp'}
-                % compute objective function of QP_lambda
-                
-                % fast:
-                sigma_empir = norm(A*x_c(:,t) - b(:,ni));
-                tau_empir = norm(x_c(:,t), 1);
-                qp_objective(t,ni,:) = sigma_empir.^2 + lambda.*tau_empir;
-    
-                % slow, more general:
-                % qp_objective(t, ni, :) = QPApprox(A,b(:,ni),x_c(:,t), lambda);
-                
-            case { 'qp2' }
-                
-                r_t = A*x_c(:,t) - b(:,ni);
-                sigma_empir = norm(r_t);
-                % need a way to store lambda_t
-                lambda_qp2(t,ni) = norm(A.' * r_t, Inf)/sigma_empir;
-                primal_min(t,ni) = sigma_empir + lambda_qp2(t,ni) * norm(x_c(:,t), 1);
-                
-                
-        end
-        
     end
-        
-    if doQP
-        % Fix lambda and ni and look over all t to find the one that
-        % minimizes the values of the objective function stored in the
-        % vector qp_lambda(\cdot, ni, lambda)
-        for ell = 1:nlambda
 
-            [qp_min, idx] = getFirstMin(constraint, qp_objective(:, ni, ell));
-            primal_min_qp(ell, ni) = qp_min(2);
-            tau_qp(ell, ni) = qp_min(1);
-            residual_qp(ell, ni) = residual(idx, ni);
-            
-            if debug_qp
-                display(qp_min);
-                plot(constraint, qp_objective(:,ni,ell));
-                hold on; 
-                plot(qp_min(1), qp_min(2), 'r.');
-                %hold off;
-                
-                ylabel('$\|Ax_\tau-b\|_2^2 + \lambda\|x_\tau\|_1$', 'Interpreter', 'latex', 'FontSize', 18);
-                xlabel('$\tau$', 'Interpreter', 'latex', 'FontSize', 18);
-            end
-
-        end
-        if debug_qp
-            hold off;
-            pause;
-        end
-    end        
-        
-        
-end
-    
-if doQP
-    primal_min = primal_min_qp;
-    varargout{1} = tau_qp;
-    residual = residual_qp;
 end
 
-if doQP2
-    varargout{1} = lambda_qp2;
-end
-
-
+if nargout > 2
+    varargout{1} = x_nnz;
 end
